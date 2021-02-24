@@ -1,110 +1,41 @@
 <template>
-  <div>
-    <div>State:     {{ message }}</div>
-    <div>Video URL: {{ videoSrc }}</div>
+  <input type="file" @change="handleFileChange" />
 
-    <input type="file" @change="handleFileChange" />
-  </div>
+  <div v-if="hasItems">
+    <div v-for="item in items">
+      <div>State:     {{ item.state }}</div>
+      <div>Video URL: {{ item.resultSource }}</div>
 
+      <div v-if="item.isConverting" class="progress-bar">
+        <div class="progress-bar-wrapper">
+          <div class="progress-bar-inner" :style="{ width: `${item.progress * 100}%` }"></div>
+        </div>
+        <div class="progress-bar-value">{{ (item.progress * 100).toFixed(2) }}%</div>
+      </div>
 
-  <div v-if="inProgess" class="progress-bar">
-    <div class="progress-bar-wrapper">
-      <div class="progress-bar-inner" :style="{ width: `${progress * 100}%` }"></div>
+      <div v-if="item.isCompleted">
+        <img :src="item.resultSource" />
+      </div>
     </div>
-    <div class="progress-bar-value">{{ (progress * 100).toFixed(2) }}%</div>
   </div>
-
-  <div v-if="hasVideo">
-    <img
-      :src="videoSrc"
-    />
-  </div>
-
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg';
+import { ref, computed } from 'vue'
+import { useFileConverter } from './hooks/useFileConverter'
 
-const message = ref('Idle')
-
-const inProgess = ref(false)
-const progress = ref(0)
-
-const videoSrc = ref('')
-const hasVideo = ref(false)
-
-const startAt = ref(0)
-const estDuration = ref(0)
+const items = ref([])
+const hasItems = computed(() => items.value.length > 0)
 
 const handleFileChange = async (event) => {
-  console.log(event.target)
-
-  hasVideo.value = false
-
   const [file] = event.target.files;
+  const { convert, ...rest } = useFileConverter()
 
-  inProgess.value = true
+  items.value.push({ ...rest })
+  console.log(items)
 
-  const ffmpeg = createFFmpeg({
-    log: true,
-  });
-
-  ffmpeg.setProgress(({ ratio }) => {
-    if (ratio < 0.01) {
-      startAt.value = Date.now()
-    }
-
-    progress.value = ratio
-    estDuration.value = (Date.now() - startAt.value) / ratio * (1 - ratio)
-  });
-
-  message.innerHTML = 'Loading ffmpeg-core.js';
-  await ffmpeg.load();
-  ffmpeg.FS('writeFile', file.name, await fetchFile(file));
-
-  message.value = 'Start transcoding';
-
-  // await ffmpeg.run('-i', file.name, 'output.mp4');
-
-  // that one works
-  // await ffmpeg.run(
-  //     '-t',
-  //     '3',
-  //     '-ss',
-  //     '0.5',
-  //     '-i',
-  //     file.name,
-  //     '-r',
-  //     '15',
-  //     'output.gif'
-  // )
-
-  // https://superuser.com/questions/556029/how-do-i-convert-a-video-to-gif-using-ffmpeg-with-reasonable-quality
-  await ffmpeg.run(
-      '-i',
-      file.name,
-      '-filter_complex',
-      'fps=15,scale=560:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse',
-      '-loop',
-      '0',
-      'output.gif'
-  )
-
-  message.value = 'Complete transcoding';
-  // const data = ffmpeg.FS('readFile', 'output.mp4');
-  const data = ffmpeg.FS('readFile', 'output.gif');
-
-  inProgess.value = false
-
-  hasVideo.value = true
-  // videoSrc.value = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
-  videoSrc.value = URL.createObjectURL(new Blob([data.buffer], { type: 'image/gif' }));
-
-  message.value = 'idle'
+  await convert(file)
 }
-
-
 </script>
 
 <style>
