@@ -38,7 +38,7 @@ const handleFileChange = async (event) => {
   const [file] = event.target.files;
   const { convert, ...rest } = useFileConverter()
 
-  items.value.push({ ...rest })
+  items.value.unshift({ ...rest })
   console.log(items)
 
   await convert(file)
